@@ -1,45 +1,42 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 기본 설정
+# 1. 기본 설정 및 여백 최적화
 st.set_page_config(page_title="성의교정 근무달력", layout="centered")
 
 st.markdown("""
     <style>
-    /* 테이블 스타일 최적화 */
+    /* 상단 여백 1cm 줄임 */
+    .block-container { padding-top: 1rem !important; }
+    
+    /* 타이틀 폰트 60% 축소 */
+    .custom-title { font-size: 1.5rem !important; font-weight: bold; margin-bottom: 10px; }
+    
+    /* 테이블 스타일: 날짜 아래 조 이름 확실히 표기 */
     .stTable td { 
-        font-size: 18px !important; 
-        height: 70px !important; 
-        vertical-align: middle !important;
-        white-space: pre-line !important;
+        font-size: 19px !important; 
+        height: 65px !important; 
+        line-height: 1.2 !important;
         text-align: center !important;
+        white-space: pre-line !important;
     }
-    .stTable th { font-size: 16px !important; text-align: center !important; }
-    /* 버튼 및 입력창 간격 조절 */
-    div[data-testid="stHorizontalBlock"] {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
+    .stTable th { font-size: 15px !important; text-align: center !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 근무 로직 및 컬러 (파스텔 & 진한 톤)
-ORDER = ["B조", "C조", "A조"]
-# 기본 파스텔 톤
+# 2. 근무 로직 및 컬러 (하이라이트 시 진한 톤)
+ORDER = ["B", "C", "A"] # 조 이름 단축 표기
 BASE_COLORS = {
-    "A조": "background-color: #FFE0B2; color: #333;",
-    "B조": "background-color: #FFCDD2; color: #333;",
-    "C조": "background-color: #BBDEFB; color: #333;"
+    "A": "background-color: #FFE0B2; color: #333;",
+    "B": "background-color: #FFCDD2; color: #333;",
+    "C": "background-color: #BBDEFB; color: #333;"
 }
-# 하이라이트 진한 톤
 STRONG_COLORS = {
-    "A조": "background-color: #FB8C00; color: #fff; font-weight: bold; border: 2px solid #333;",
-    "B조": "background-color: #E53935; color: #fff; font-weight: bold; border: 2px solid #333;",
-    "C조": "background-color: #1E88E5; color: #fff; font-weight: bold; border: 2px solid #333;"
+    "A": "background-color: #FB8C00; color: #fff; font-weight: bold; border: 2px solid #000;",
+    "B": "background-color: #E53935; color: #fff; font-weight: bold; border: 2px solid #000;",
+    "C": "background-color: #1E88E5; color: #fff; font-weight: bold; border: 2px solid #000;"
 }
 
 def get_shift(target_date):
@@ -47,17 +44,16 @@ def get_shift(target_date):
     delta = (target_date - base_date).days
     return ORDER[delta % 3]
 
-# 3. 메인 상단 컨트롤러 (사이드바 대신 사용)
-st.title("🏥 성의교정 근무스케줄")
+# 3. 상단 컨트롤러 (타이틀 축소 및 슬라이더)
+st.markdown('<div class="custom-title">🏥 성의교정 근무스케줄</div>', unsafe_allow_html=True)
 
-c1, c2, c3 = st.columns([2, 1, 1])
-with c1:
-    my_shift = st.selectbox("🎯 강조할 조 선택", ["선택 안 함", "A조", "B조", "C조"])
-with c2:
-    today = datetime.now()
-    sel_year = st.number_input("연도", 2020, 2035, today.year)
-with c3:
-    sel_month = st.number_input("월", 1, 12, today.month)
+# 조 선택 및 슬라이더 배치
+highlight_shift = st.selectbox("🎯 강조할 조 선택", ["선택 안 함", "A", "B", "C"])
+month_offset = st.slider("📅 조회 범위 조절 (현재 기준)", -12, 12, 0)
+
+# 기준 날짜 계산
+today = datetime.now()
+start_date = (today.replace(day=1) + timedelta(days=31 * month_offset)).replace(day=1)
 
 # 4. 스타일 적용 함수
 def style_calendar(df, year, month, highlight):
@@ -70,21 +66,29 @@ def style_calendar(df, year, month, highlight):
                 curr_date = date(year, month, day_int)
                 shift = get_shift(curr_date)
                 
-                # 하이라이트 여부에 따른 색상 결정
                 if highlight != "선택 안 함" and shift == highlight:
                     style = STRONG_COLORS.get(shift, "")
                 else:
                     style = BASE_COLORS.get(shift, "")
-                
                 styles.iloc[r, c] = style
     return styles
 
-# 5. 달력 1열 나열 출력 (12개월)
+# 5. 달력 세로 1열 출력 (12개월)
 for i in range(12):
-    curr_m = (sel_month + i - 1) % 12 + 1
-    curr_y = sel_year + (sel_month + i - 1) // 12
+    # 각 달의 연도와 월 계산
+    target_month_date = start_date + timedelta(days=i * 31)
+    curr_y = target_month_date.year
+    curr_m = target_month_date.month
     
-    st.write(f"### 📅 {curr_y}년 {curr_m}월")
+    # 겹침 방지 및 정확한 월 계산 보정
+    if i > 0:
+        prev_m = (start_date + timedelta(days=(i-1)*31)).month
+        if curr_m == prev_m: # timedelta 오차 보정
+            target_month_date += timedelta(days=10)
+            curr_y = target_month_date.year
+            curr_m = target_month_date.month
+
+    st.write(f"#### 📅 {curr_y}년 {curr_m}월")
     
     cal = calendar.monthcalendar(curr_y, curr_m)
     display_data = []
@@ -93,8 +97,7 @@ for i in range(12):
         display_data.append(row)
     
     df = pd.DataFrame(display_data, columns=['일', '월', '화', '수', '목', '금', '토'])
+    styled_df = df.style.apply(lambda d: style_calendar(df, curr_y, curr_m, highlight_shift), axis=None)
     
-    # 스타일 적용 및 테이블 출력
-    styled_df = df.style.apply(lambda d: style_calendar(df, curr_y, curr_m, my_shift), axis=None)
     st.table(styled_df)
-    st.divider()
+    st.write("") # 간격 확보
