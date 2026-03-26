@@ -3,88 +3,92 @@ import pandas as pd
 from datetime import datetime, date
 import calendar
 
-# 1. 기본 설정
+# 1. 기본 설정 및 스타일
 st.set_page_config(page_title="성의교정 근무달력", layout="wide")
 
-# CSS 주입: 폰트 크기 확대 및 스타일 고정
 st.markdown("""
     <style>
-    .cal-table { width:100%; border-collapse: collapse; text-align: center; table-layout: fixed; margin-bottom: 20px; }
-    .cal-table th { background-color: #f8f9fa; padding: 5px; font-size: 15px; border: 1px solid #eee; }
-    .cal-table td { padding: 8px; border: 1px solid #eee; height: 55px; vertical-align: middle; }
-    .date-num { font-weight: bold; font-size: 18px; margin-bottom: 2px; }
-    .shift-name { font-size: 13px; font-weight: 500; }
-    .sun { color: #e74c3c; }
-    .sat { color: #3498db; }
+    /* 타이틀 및 텍스트 크기 확대 */
+    .stMarkdown h3 { font-size: 20px !important; }
+    .stMarkdown p { font-size: 16px !important; }
+    /* 테이블 가독성 향상 */
+    table { font-size: 16px !important; text-align: center !important; }
+    th { background-color: #f0f2f6 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 타이틀
-st.markdown("### 🏥 성의교정 근무스케줄")
-
-# 2. 근무 로직 및 컬러 (파스텔 톤)
-PASTEL_COLORS = {"A조": "#FFCC80", "B조": "#EF9A9A", "C조": "#90CAF9"}
+# 2. 근무 로직 및 파스텔 컬러
 ORDER = ["B조", "C조", "A조"]
+PASTEL_COLORS = {
+    "A조": "background-color: #FFCC80; color: #333;",
+    "B조": "background-color: #EF9A9A; color: #333;",
+    "C조": "background-color: #90CAF9; color: #333;"
+}
 
-def get_shift(target_date):
-    base_date = date(2026, 1, 1) # 기준일
+def get_shift_info(target_date):
+    base_date = date(2026, 1, 1)
     delta = (target_date - base_date).days
     return ORDER[delta % 3]
 
 # 3. 사이드바 제어
 with st.sidebar:
     st.header("⚙️ 옵션")
-    target_shift = st.selectbox("👉 하이라이트할 조", ["선택 안 함", "A조", "B조", "C조"])
-    
+    my_shift = st.selectbox("👉 내 조 선택 (하이라이트)", ["선택 안 함", "A조", "B조", "C조"])
     st.divider()
     today = datetime.now()
-    sel_year = st.number_input("연도 선택", min_value=2020, max_value=2035, value=today.year)
-    sel_month = st.slider("시작 월 선택", 1, 12, today.month)
+    sel_year = st.number_input("조회 연도", min_value=2020, max_value=2035, value=today.year)
+    sel_month = st.slider("시작 월", 1, 12, today.month)
 
-# 4. 달력 생성 함수 (st.write 방식 사용 - 기능 연동 확실함)
-def draw_calendar(year, month, highlight):
+# 4. 달력 데이터 생성 함수
+def make_cal_df(year, month):
     cal = calendar.monthcalendar(year, month)
-    
-    html = f"<div style='text-align: center; margin-top:15px;'><b>{year}년 {month}월</b></div>"
-    html += "<table class='cal-table'>"
-    html += "<tr><th class='sun'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat'>토</th></tr>"
-    
-    for week in cal:
-        html += "<tr>"
-        for i, day in enumerate(week):
-            if day == 0:
-                html += "<td></td>"
-            else:
-                curr_date = date(year, month, day)
-                shift = get_shift(curr_date)
-                color = PASTEL_COLORS[shift]
-                
-                # 하이라이트 조건
-                is_target = (shift == highlight)
-                opacity = "1.0" if (highlight == "선택 안 함" or is_target) else "0.15"
-                border = "3px solid #333" if is_target else "1px solid #eee"
-                
-                # 요일 색상
-                d_cls = "sun" if i == 0 else ("sat" if i == 6 else "")
-                
-                html += f"""
-                <td style="background-color: {color}; opacity: {opacity}; border: {border};">
-                    <div class="date-num {d_cls}">{day}</div>
-                    <div class="shift-name" style="color: #444;">{shift}</div>
-                </td>
-                """
-        html += "</tr>"
-    html += "</table>"
-    st.markdown(html, unsafe_allow_html=True)
+    df = pd.DataFrame(cal, columns=['일', '월', '화', '수', '목', '금', '토'])
+    return df
 
-# 5. 메인 레이아웃 (선택 월부터 12개월 출력)
-st.info(f"📅 {sel_year}년 {sel_month}월부터 1년간의 일정입니다.")
+def apply_style(val, year, month, highlight):
+    if val == 0:
+        return ""
+    curr_date = date(year, month, val)
+    shift = get_shift_info(curr_date)
+    style = PASTEL_COLORS[shift]
+    
+    # 하이라이트 로직
+    if highlight != "선택 안 함":
+        if shift == highlight:
+            style += " font-weight: bold; border: 3px solid #333 !important;"
+        else:
+            style += " opacity: 0.2;"
+    
+    return style
+
+# 5. 메인 화면 출력
+st.write(f"### 🏥 성의교정 근무스케줄 ({sel_year}년 {sel_month}월부터 1년)")
 
 cols = st.columns(2)
 for i in range(12):
-    # 연/월 계산 로직 보정
-    m = (sel_month + i - 1) % 12 + 1
-    y = sel_year + (sel_month + i - 1) // 12
+    curr_m = (sel_month + i - 1) % 12 + 1
+    curr_y = sel_year + (sel_month + i - 1) // 12
     
     with cols[i % 2]:
-        draw_calendar(y, m, target_shift)
+        st.write(f"#### 📅 {curr_y}년 {curr_m}월")
+        df = make_cal_df(curr_y, curr_m)
+        
+        # 데이터프레임에 근무 조 표시 및 스타일 적용
+        styled_df = df.style.apply(lambda x: [
+            apply_style(v, curr_y, curr_m, my_shift) for v in x
+        ], axis=None)
+        
+        # 0(빈 날짜)을 공백으로 표시
+        display_df = df.copy().astype(str).replace('0', '')
+        for col in df.columns:
+            for idx in df.index:
+                day_val = df.at[idx, col]
+                if day_val != 0:
+                    shift = get_shift_info(date(curr_y, curr_m, day_val))
+                    display_df.at[idx, col] = f"{day_val}\n({shift})"
+
+        st.table(display_df.style.apply(lambda x: [
+            apply_style(v, curr_y, curr_m, my_shift) for v in df.values.flatten()
+        ], axis=None).set_table_styles([
+            {'selector': 'td', 'props': [('height', '60px'), ('width', '14%')]}
+        ]))
