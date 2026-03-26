@@ -2,38 +2,50 @@ import streamlit as st
 
 st.set_page_config(page_title="성의교정 보고체계", layout="wide")
 
-# 여백 극한 제거 및 표 스타일 (국번 대체 반영)
+# 여백 극한 제거 및 표 스타일 설정
 st.markdown("""
     <style>
-    .block-container {padding: 0.2rem 0.2rem;}
-    table {width: 100%; border-collapse: collapse; font-size: 0.82em; line-height: 1.1;}
-    th, td {border: 1px solid #999; padding: 2px 4px; text-align: center;}
-    th {background-color: #eee; font-weight: bold;}
-    .tel-link {text-decoration: none; color: #007bff; font-weight: bold;}
-    .emergency-row {background-color: #ffe6e6; font-weight: bold;}
+    /* 페이지 전체 여백 제거 */
+    .block-container {padding: 0.5rem 0.2rem !important;}
+    
+    /* 타이틀 스타일 */
+    .app-title {font-size: 1.2em; font-weight: bold; text-align: center; margin-bottom: 5px;}
+    
+    /* 표 기본 스타일: 여백 0, 줄간격 최소 */
+    table {width: 100%; border-collapse: collapse; font-size: 0.82em; line-height: 1.0; table-layout: fixed;}
+    th, td {border: 1px solid #444; padding: 1px 2px !important; text-align: center; height: 1.8em;}
+    th {background-color: #f0f0f0; font-weight: bold;}
+    
+    /* 전화번호 링크 스타일 */
+    .tel-link {text-decoration: none; color: #007bff; font-weight: bold; display: block; width: 100%; height: 100%;}
+    
+    /* 상황실 강조 행 */
+    .emergency-row {background-color: #ffcccc; font-weight: bold;}
     </style>
     """, unsafe_allow_html=True)
 
-# 1. 상황실 (3147 제거) 
+# 1. 타이틀 [cite: 1]
+st.markdown('<div class="app-title">성의교정 보고체계</div>', unsafe_allow_html=True)
+
+# 2. 성의교정 상황실 
 st.markdown("""
     <table>
         <tr class="emergency-row">
-            <td style="width:50%;">🚨 성의교정 상황실</td>
+            <td style="width:40%;">🚨 상황실</td>
             <td><a class="tel-link" href="tel:0231478000">-8000</a></td>
         </tr>
     </table>
-    <div style='margin-bottom: 2px;'></div>
+    <div style='margin-bottom: 3px;'></div>
     """, unsafe_allow_html=True)
 
-# 2. 메인 연락처 표 (PDF 레이아웃 유지 + 국번 변환) 
-# 3147 -> 국번 삭제 (-) / 2258 -> *1- 로 표시
+# 3. 메인 연락처 표 (3147 삭제, 2258 -> *1 변환) 
 st.markdown("""
     <table>
         <tr>
-            <th>건물명</th>
-            <th>전화번호</th>
-            <th>부서명</th>
-            <th>전화번호</th>
+            <th style="width:25%;">건물명</th>
+            <th style="width:25%;">번호</th>
+            <th style="width:25%;">부서명</th>
+            <th style="width:25%;">번호</th>
         </tr>
         <tr>
             <td rowspan="2">옴니버스</td>
@@ -67,19 +79,19 @@ st.markdown("""
         <tr>
             <td>병원별관</td>
             <td><a class="tel-link" href="tel:0222581115">*1-1115</a></td>
-            <td>별관 전기팀</td>
+            <td>별관 전기</td>
             <td><a class="tel-link" href="tel:0222585673">*1-5673</a></td>
         </tr>
         <tr>
             <td>대학본관</td>
             <td><a class="tel-link" href="tel:0231478100">-8100</a></td>
-            <td>별관 설비팀</td>
+            <td>별관 설비</td>
             <td><a class="tel-link" href="tel:0222585622">*1-5622</a></td>
         </tr>
     </table>
     """, unsafe_allow_html=True)
 
-# 3. 유관기관 (PDF 하단) 
+# 4. 유관기관 
 st.markdown("""
     <div style='margin-top: 5px;'></div>
     <table>
