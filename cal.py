@@ -8,96 +8,114 @@ st.set_page_config(page_title="성의교정 근무달력", layout="centered")
 
 st.markdown("""
     <style>
-    /* 상단 여백 1cm 줄임 */
     .block-container { padding-top: 1rem !important; }
-    
-    /* 타이틀 폰트 60% 축소 */
-    .custom-title { font-size: 1.5rem !important; font-weight: bold; margin-bottom: 10px; }
-    
-    /* 테이블 스타일: 날짜 아래 조 이름 확실히 표기 */
+    /* 테이블 칸 스타일: 내부 레이아웃 분리 */
     .stTable td { 
-        font-size: 19px !important; 
-        height: 65px !important; 
-        line-height: 1.2 !important;
-        text-align: center !important;
-        white-space: pre-line !important;
+        padding: 0 !important; 
+        height: 80px !important; 
+        width: 14% !important;
+        vertical-align: top !important;
     }
-    .stTable th { font-size: 15px !important; text-align: center !important; }
+    .cell-container { display: flex; flex-direction: column; height: 100%; border: 0.5px solid #eee; }
+    .date-part { background-color: white; height: 40%; font-size: 16px; font-weight: bold; padding-top: 5px; }
+    .shift-part { height: 60%; font-size: 20px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+    
+    /* 요일별 색상 */
+    .sun { color: #d32f2f !important; }
+    .sat { color: #1976d2 !important; }
+    .holiday { color: #d32f2f !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 근무 로직 및 컬러 (하이라이트 시 진한 톤)
-ORDER = ["B", "C", "A"] # 조 이름 단축 표기
-BASE_COLORS = {
-    "A": "background-color: #FFE0B2; color: #333;",
-    "B": "background-color: #FFCDD2; color: #333;",
-    "C": "background-color: #BBDEFB; color: #333;"
-}
-STRONG_COLORS = {
-    "A": "background-color: #FB8C00; color: #fff; font-weight: bold; border: 2px solid #000;",
-    "B": "background-color: #E53935; color: #fff; font-weight: bold; border: 2px solid #000;",
-    "C": "background-color: #1E88E5; color: #fff; font-weight: bold; border: 2px solid #000;"
-}
+# 2. 근무 로직 및 공휴일 데이터
+ORDER = ["B", "C", "A"]
+# 기본 파스텔톤 (조 표시 부분)
+BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"}
+# 하이라이트 시 칸 전체에 적용될 진한 톤
+STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"}
 
 def get_shift(target_date):
     base_date = date(2026, 1, 1)
     delta = (target_date - base_date).days
     return ORDER[delta % 3]
 
-# 3. 상단 컨트롤러 (타이틀 축소 및 슬라이더)
-st.markdown('<div class="custom-title">🏥 성의교정 근무스케줄</div>', unsafe_allow_html=True)
+def is_holiday(dt):
+    # 주요 공휴일 예시 (필요시 추가 가능)
+    holidays = [date(dt.year, 1, 1), date(dt.year, 3, 1), date(dt.year, 5, 5), 
+                date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
+    return dt in holidays
 
-# 조 선택 및 슬라이더 배치
-highlight_shift = st.selectbox("🎯 강조할 조 선택", ["선택 안 함", "A", "B", "C"])
-month_offset = st.slider("📅 조회 범위 조절 (현재 기준)", -12, 12, 0)
+# 3. 상단 컨트롤러
+st.subheader("🏥 성의교정 근무스케줄")
+
+c1, c2 = st.columns([1, 2])
+with c1:
+    highlight_shift = st.selectbox("🎯 강조할 조", ["선택 안 함", "A", "B", "C"])
+with c2:
+    month_offset = st.slider("📅 조회 범위(현재 기준)", -12, 12, 0)
 
 # 기준 날짜 계산
 today = datetime.now()
-start_date = (today.replace(day=1) + timedelta(days=31 * month_offset)).replace(day=1)
+start_date = (today.replace(day=1) + timedelta(days=32 * month_offset)).replace(day=1)
 
-# 4. 스타일 적용 함수
-def style_calendar(df, year, month, highlight):
-    styles = pd.DataFrame('', index=df.index, columns=df.columns)
-    for r in range(len(df)):
-        for c in range(len(df.columns)):
-            val = df.iloc[r, c]
-            if val != "":
-                day_int = int(val.split('\n')[0])
-                curr_date = date(year, month, day_int)
-                shift = get_shift(curr_date)
-                
-                if highlight != "선택 안 함" and shift == highlight:
-                    style = STRONG_COLORS.get(shift, "")
-                else:
-                    style = BASE_COLORS.get(shift, "")
-                styles.iloc[r, c] = style
-    return styles
-
-# 5. 달력 세로 1열 출력 (12개월)
-for i in range(12):
-    # 각 달의 연도와 월 계산
-    target_month_date = start_date + timedelta(days=i * 31)
-    curr_y = target_month_date.year
-    curr_m = target_month_date.month
+# 4. 달력 렌더링 함수 (HTML 직접 주입 방식으로 정밀 제어)
+def render_calendar_html(year, month, highlight):
+    cal = calendar.monthcalendar(year, month)
+    html = f"<div style='text-align: center; margin-bottom: 10px;'><b>{year}년 {month}월</b></div>"
+    html += "<table style='width: 100%; border-collapse: collapse; table-layout: fixed;'>"
+    html += "<tr style='background: #f8f9fa;'><th class='sun'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat'>토</th></tr>"
     
-    # 겹침 방지 및 정확한 월 계산 보정
-    if i > 0:
-        prev_m = (start_date + timedelta(days=(i-1)*31)).month
-        if curr_m == prev_m: # timedelta 오차 보정
-            target_month_date += timedelta(days=10)
-            curr_y = target_month_date.year
-            curr_m = target_month_date.month
-
-    st.write(f"#### 📅 {curr_y}년 {curr_m}월")
-    
-    cal = calendar.monthcalendar(curr_y, curr_m)
-    display_data = []
     for week in cal:
-        row = [f"{d}\n{get_shift(date(curr_y, curr_m, d))}" if d != 0 else "" for d in week]
-        display_data.append(row)
+        html += "<tr>"
+        for i, day in enumerate(week):
+            if day == 0:
+                html += "<td style='border: 0.5px solid #eee;'></td>"
+            else:
+                curr_date = date(year, month, day)
+                shift = get_shift(curr_date)
+                is_h = is_holiday(curr_date)
+                
+                # 요일/공휴일 클래스 결정
+                day_class = "sun" if i == 0 or is_h else ("sat" if i == 6 else "")
+                
+                # 배경색 결정 (하이라이트 여부)
+                if highlight == shift:
+                    full_bg = STRONG_COLORS[shift]
+                    date_bg = STRONG_COLORS[shift] # 하이라이트 시 날짜 배경도 동일하게
+                    text_color = "white"
+                else:
+                    full_bg = BASE_COLORS[shift]
+                    date_bg = "white" # 기본 상태에서 날짜는 백색 배경
+                    text_color = "#333"
+
+                html += f"""
+                <td style="background-color: {full_bg};">
+                    <div class="cell-container">
+                        <div class="date-part {day_class}" style="background-color: {date_bg}; color: {'inherit' if highlight != shift else 'white'};">
+                            {day}
+                        </div>
+                        <div class="shift-part" style="color: {text_color};">
+                            {shift}
+                        </div>
+                    </div>
+                </td>
+                """
+        html += "</tr>"
+    html += "</table>"
+    return html
+
+# 5. 세로 1열 출력
+for i in range(12):
+    # 월 계산 보정
+    target_date = start_date + timedelta(days=i * 31)
+    y, m = target_date.year, target_date.month
     
-    df = pd.DataFrame(display_data, columns=['일', '월', '화', '수', '목', '금', '토'])
-    styled_df = df.style.apply(lambda d: style_calendar(df, curr_y, curr_m, highlight_shift), axis=None)
-    
-    st.table(styled_df)
-    st.write("") # 간격 확보
+    # 중복 출력 방지 로직 (timedelta 오차 대응)
+    if i > 0:
+        prev_date = start_date + timedelta(days=(i-1)*31)
+        if prev_date.month == m:
+            target_date += timedelta(days=15)
+            y, m = target_date.year, target_date.month
+
+    st.markdown(render_calendar_html(y, m, highlight_shift), unsafe_allow_html=True)
+    st.write("") # 간격
