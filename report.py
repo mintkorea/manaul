@@ -1,74 +1,88 @@
 import streamlit as st
 
-
-# 페이지 설정
 st.set_page_config(page_title="성의교정 보고체계", layout="wide")
 
-# CSS를 이용해 버튼 디자인 및 가독성 향상
+# 버튼 및 레이아웃 스타일 설정
 st.markdown("""
     <style>
     .stButton > button {
         width: 100%;
-        border-radius: 10px;
-        height: 3em;
-        background-color: #f0f2f6;
+        border-radius: 8px;
+        margin-bottom: 5px;
         font-weight: bold;
     }
+    /* 상황실 버튼 강조 */
     .emergency-btn > div > button {
-        background-color: #ff4b4b !important;
+        background-color: #e74c3c !important;
         color: white !important;
+        height: 4em;
+        font-size: 1.2em !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📞 성의교정 긴급 연락처")
-
-# 1. 최상단 긴급 연락처 (상황실)
-st.subheader("🚨 통합 상황실")
-col_main = st.columns(1)[0]
-with col_main:
-    # PDF 1페이지: 상황실 3147-8000 
-    if st.button("🚨 상황실 즉시 연결 (3147-8000)", key="main_sos", help="클릭 시 전화 앱으로 연결됩니다."):
+# 최상단: 성의교정 상황실 (PDF 상단 중앙 데이터)
+st.markdown("<h2 style='text-align: center;'>📞 성의교정 보고체계</h2>", unsafe_allow_html=True)
+st.container()
+col_sec = st.columns([1, 2, 1])
+with col_sec[1]:
+    st.markdown('<div class="emergency-btn">', unsafe_allow_html=True)
+    if st.button("🚨 상황실 즉시 연결 (3147-8000)", key="sos"):
         st.markdown('<meta http-equiv="refresh" content="0; url=tel:0231478000">', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
-# 2. 건물별/부서별 연락처 (Page 1 데이터 기반)
-st.subheader("🏢 건물별 연락처")
+# 메인 섹션: 2열 배치
+col_left, col_right = st.columns(2)
 
-# PDF 1페이지 표 데이터를 기반으로 구성 [cite: 2]
-contact_data = [
-    {"건물": "옴니버스", "부서": "통합관제실", "번호": "02-3147-8500", "직통": "02-2258-5555"},
-    {"건물": "옴니버스", "부서": "설비팀", "번호": "02-3147-8600", "직통": "02-2258-5624"},
-    {"건물": "성의회관", "부서": "전기팀", "번호": "02-3147-8300", "직통": "02-2258-5672"},
-    {"건물": "의산연본관", "부서": "통신실", "번호": "02-3147-8200", "직통": "02-2258-5712"},
-    {"건물": "의산연별관", "부서": "반송통제실", "번호": "02-3147-8400", "직통": "02-2258-5616"},
-    {"건물": "병원별관", "부서": "전기팀", "번호": "02-2258-1115", "직통": "02-2258-5673"},
-    {"건물": "대학본관", "부서": "설비팀", "번호": "02-3147-8100", "직통": "02-2258-5622"},
-]
+with col_left:
+    st.subheader("🏢 건물별 주요 보고처")
+    # PDF 1페이지 좌측: 통합관제실 및 주요 건물 연락처 
+    building_contacts = [
+        ("옴니버스 통합관제실", "3147-8500", "2258-5555"),
+        ("의산연본관", "3147-8200", "2258-5712"),
+        ("의산연별관", "3147-8400", "2258-5616"),
+        ("대학본관", "3147-8100", "2258-5622"),
+        ("병원별관", "2258-1115", "2258-5673")
+    ]
+    for name, num1, num2 in building_contacts:
+        with st.expander(f"📍 {name}"):
+            c1, c2 = st.columns(2)
+            if c1.button(f"📞 {num1}", key=f"l_{num1}"):
+                st.markdown(f'<meta http-equiv="refresh" content="0; url=tel:02{num1.replace("-","")}">', unsafe_allow_html=True)
+            if c2.button(f"📱 {num2}", key=f"l_{num2}"):
+                st.markdown(f'<meta http-equiv="refresh" content="0; url=tel:02{num2.replace("-","")}">', unsafe_allow_html=True)
 
-for item in contact_data:
-    with st.expander(f"{item['건물']} - {item['부서']}"):
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button(f"📞 일반: {item['번호']}", key=f"btn_{item['번호']}"):
-                st.markdown(f'<meta http-equiv="refresh" content="0; url=tel:{item["번호"].replace("-","")}">', unsafe_allow_html=True)
-        with c2:
-            if st.button(f"📱 직통: {item['직통']}", key=f"btn_{item['직통']}"):
-                st.markdown(f'<meta http-equiv="refresh" content="0; url=tel:{item["직통"].replace("-","")}">', unsafe_allow_html=True)
+with col_right:
+    st.subheader("🛠️ 주요 팀별 연락처")
+    # PDF 1페이지 우측: 설비, 전기, 통신팀 데이터 
+    team_contacts = [
+        ("옴니버스 설비팀", "3147-8600", "2258-5624"),
+        ("성의회관 전기팀", "3147-8300", "2258-5672"),
+        ("병원별관 설비팀", "3147-8100", "2258-5622"),
+        ("반송통제실", "3147-8400", "2258-5616"),
+    ]
+    for name, num1, num2 in team_contacts:
+        with st.expander(f"⚙️ {name}"):
+            c1, c2 = st.columns(2)
+            if c1.button(f"📞 {num1}", key=f"r_{num1}"):
+                st.markdown(f'<meta http-equiv="refresh" content="0; url=tel:02{num1.replace("-","")}">', unsafe_allow_html=True)
+            if c2.button(f"📱 {num2}", key=f"r_{num2}"):
+                st.markdown(f'<meta http-equiv="refresh" content="0; url=tel:02{num2.replace("-","")}">', unsafe_allow_html=True)
 
 st.divider()
 
-# 3. 유관기관 연락처 (Page 1 하단)
-st.subheader("🚑 유관기관")
-# PDF 1페이지: 서초소방서, 서초경찰서, 반포지구대 [cite: 2]
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("🔥 소방서 (532-0119)"):
+# 하단: 유관기관 (서초소방서, 서초경찰서, 반포지구대)
+st.subheader("🚑 유관기관 연락처")
+# PDF 1페이지 하단 유관기관 데이터 
+u1, u2, u3 = st.columns(3)
+with u1:
+    if st.button("🔥 서초소방서 (532-0119)"):
         st.markdown('<meta http-equiv="refresh" content="0; url=tel:025320119">', unsafe_allow_html=True)
-with col2:
-    if st.button("🚔 경찰서 (532-0112)"):
+with u2:
+    if st.button("🚔 서초경찰서 (532-0112)"):
         st.markdown('<meta http-equiv="refresh" content="0; url=tel:025320112">', unsafe_allow_html=True)
-with col3:
-    if st.button("🏘️ 지구대 (536-8477)"):
+with u3:
+    if st.button("🏘️ 반포지구대 (536-8477)"):
         st.markdown('<meta http-equiv="refresh" content="0; url=tel:025368477">', unsafe_allow_html=True)
