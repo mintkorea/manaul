@@ -3,17 +3,20 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 페이지 설정 (wide 모드)
+# 1. 페이지 설정
 st.set_page_config(page_title="성의교정 근무달력", layout="wide")
 
-# 상단 여백 8mm(약 32px) 추가 확보 -> 총 52px (기존 20px + 32px)
+# 상단 여백 8mm(약 32px) + 기본 여백 포함 (총 55px)
 st.markdown("""
     <style>
-    .block-container { padding-top: 52px !important; }
+    .block-container { padding-top: 55px !important; }
+    /* 외부 스크롤바 디자인 깔끔하게 정리 */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 근무 및 색상 정의
+# 2. 근무 로직
 ORDER = ["B", "C", "A"]
 BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"}
 STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"}
@@ -27,7 +30,7 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 상단 컨트롤러
+# 3. 타이틀 및 컨트롤러
 st.subheader("🏥 성의교정 근무스케줄")
 
 c1, c2 = st.columns([1.2, 0.8])
@@ -36,12 +39,18 @@ with c1:
 with c2:
     hi_shift = st.selectbox("🎯 강조 조 선택", ["선택 안 함", "A", "B", "C"])
 
-# 4. 12개월 HTML 생성 함수
-def get_12months_html(start_dt, highlight):
+# 4. 12개월 반응형 HTML 생성 (스크롤 발생 요소 제거)
+def get_clean_calendar_html(start_dt, highlight):
     html_content = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: white; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Noto Sans KR', sans-serif; 
+            background-color: white; 
+            margin: 0; 
+            padding: 0;
+            overflow: hidden; /* 내부 스크롤 방지 */
+        }
         .grid-container { 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
@@ -51,18 +60,14 @@ def get_12months_html(start_dt, highlight):
         @media (min-width: 1000px) {
             .grid-container { grid-template-columns: repeat(3, 1fr); }
         }
-        .cal-box { border: 1px solid #eee; border-radius: 12px; padding: 12px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .cal-box { border: 1px solid #eee; border-radius: 12px; padding: 12px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .month-title { text-align: center; font-weight: 900; font-size: 1.5rem; margin: 10px 0; color: #333; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th { border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 15px; }
-        td { border: 1px solid #f2f2f2; height: 70px; vertical-align: top; padding: 0; }
+        th { border-bottom: 2px solid #eee; padding-bottom: 8px; font-size: 15px; }
+        td { border: 1px solid #f2f2f2; height: 65px; vertical-align: top; padding: 0; }
         .sun { color: #d32f2f; } .sat { color: #1976d2; }
         .cell-content { display: flex; flex-direction: column; height: 100%; }
-        /* 날짜 숫자: 크기 +1pt 키우고 900 볼드 적용 */
-        .date-num { 
-            height: 40%; display: flex; align-items: center; justify-content: center; 
-            font-weight: 900 !important; font-size: 17px !important; 
-        }
+        .date-num { height: 40%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 17px; }
         .shift-name { height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 20px; }
     </style>
     <div class="grid-container">
@@ -95,15 +100,10 @@ def get_12months_html(start_dt, highlight):
                     </td>"""
             html_content += "</tr>"
         html_content += "</table></div>"
-        
-        # 다음 달 계산
         last_day = calendar.monthrange(y, m)[1]
         curr += timedelta(days=last_day)
-        
-    html_content += "</div>"
-    return html_content
+    return html_content + "</div>"
 
-# 5. 실행 및 렌더링
+# 5. 실행 (scrolling=False로 이중 스크롤 완전 제거)
 start_date = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
-# height를 5000px로 대폭 늘려 모바일 스크롤 시 12개월 전체가 나오도록 조치
-components.html(get_12months_html(start_date, hi_shift), height=5000, scrolling=True)
+components.html(get_clean_calendar_html(start_date, hi_shift), height=4500, scrolling=False)
