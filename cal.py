@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 페이지 설정 (3x4 배치를 위해 wide 모드)
+# 1. 페이지 설정 (3x4 레이아웃을 위한 wide 모드)
 st.set_page_config(page_title="성의교정 근무달력", layout="wide")
 
 st.markdown("""
@@ -15,10 +15,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 근무 및 색상 정의
+# 2. 근무 로직 및 색상 정의
 ORDER = ["B", "C", "A"]
-BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"} # 평상시 연한 색
-STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"} # 하이라이트 진한 색
+BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"} # 평상시 연한 파스텔톤
+STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"} # 하이라이트 시 진한 색
 
 def get_shift(dt):
     base = date(2026, 1, 1)
@@ -29,7 +29,7 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 컨트롤러 배치
+# 3. 상단 컨트롤러
 st.subheader("🏥 성의교정 근무스케줄 (1년)")
 
 c1, c2 = st.columns([1.2, 0.8])
@@ -44,7 +44,7 @@ if st.button("🖨️ PDF 저장 / 인쇄하기"):
 # 시작 날짜 계산
 start_dt = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
 
-# 4. 달력 HTML 생성 (날짜 흰색 배경 + 조건부 하이라이트)
+# 4. 달력 HTML 생성 (하이라이트 시에도 타 조 색상 유지)
 def generate_calendar_html(y, m, highlight):
     cal = calendar.monthcalendar(y, m)
     html = f"""
@@ -77,20 +77,17 @@ def generate_calendar_html(y, m, highlight):
                 s = get_shift(curr)
                 day_class = "sun" if (i == 0 or is_holiday(curr)) else ("sat" if i == 6 else "")
                 
-                # 하이라이트 로직
+                # 하이라이트 상태 결정
                 is_selected = (highlight == s)
-                if highlight == "선택 안 함":
-                    bg_color = BASE_COLORS[s]
-                    date_bg = "white"
-                    text_color = "#333"
-                elif is_selected:
-                    bg_color = STRONG_COLORS[s]
-                    date_bg = STRONG_COLORS[s] # 하이라이트 시 날짜 배경도 조 색상으로
+                
+                if is_selected:
+                    bg_color = STRONG_COLORS[s] # 강조 시 진한 배경
+                    date_bg = STRONG_COLORS[s] # 날짜 박스도 진한 배경
                     text_color = "white"
                 else:
-                    bg_color = "#f9f9f9" # 미선택 조는 희미하게
-                    date_bg = "white"
-                    text_color = "#ddd"
+                    bg_color = BASE_COLORS[s] # 강조 안 할 때도 원래 색상 유지
+                    date_bg = "white" # 기본 날짜 배경은 흰색
+                    text_color = "#333"
 
                 html += f"""
                 <td style="background-color: {bg_color};">
@@ -108,7 +105,7 @@ def generate_calendar_html(y, m, highlight):
         html += "</tr>"
     return html + "</table></div>"
 
-# 5. 12개월 3x4 출력
+# 5. 3x4 레이아웃 12개월 출력
 months_list = []
 temp_dt = start_dt
 for _ in range(12):
