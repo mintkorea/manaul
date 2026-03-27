@@ -3,18 +3,20 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 페이지 설정 (3x4 배치를 위해 wide)
+# 1. 페이지 설정 (3x4 레이아웃을 위해 wide)
 st.set_page_config(page_title="성의교정 근무달력", layout="wide")
 
 st.markdown("""
     <style>
-    /* 상단 여백: 너무 넓지 않게 적절히 조정 */
-    .block-container { padding-top: 2.8rem !important; }
+    /* 상단 여백: 약 5mm(20px) 수준으로 미세 조정 */
+    .block-container { padding-top: 1.5rem !important; }
     
-    /* 인쇄 시 불필요한 UI 숨기기 */
+    /* 인쇄 시 컨트롤러 및 버튼 숨기기 */
     @media print {
-        .no-print, .stButton, .stSlider, .stSelectbox, header { display: none !important; }
-        .block-container { padding: 0 !important; }
+        .no-print, .stButton, .stSlider, .stSelectbox, header, [data-testid="stToolbar"] { 
+            display: none !important; 
+        }
+        .block-container { padding: 0 !important; margin: 0 !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -33,12 +35,21 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 상단 컨트롤러 (인쇄 버튼이 맨 위)
+# 3. 상단 컨트롤러 (인쇄 버튼 맨 위 배치)
 st.subheader("🏥 성의교정 근무스케줄")
 
-# PDF 저장/인쇄 버튼 (클릭 시 브라우저 인쇄창 호출)
-if st.button("🖨️ PDF 저장 / 인쇄하기"):
-    components.html("<script>window.print();</script>", height=0)
+# PDF 저장 버튼 (안정성을 위해 HTML/JS 버튼 사용)
+components.html("""
+    <button onclick="window.print()" style="
+        padding: 10px 20px; 
+        background-color: #f0f2f6; 
+        border: 1px solid #d1d5db; 
+        border-radius: 8px; 
+        cursor: pointer;
+        font-weight: bold;
+        margin-bottom: 10px;
+    ">🖨️ PDF 저장 / 인쇄하기</button>
+""", height=60)
 
 c1, c2 = st.columns([1.2, 0.8])
 with c1:
@@ -49,27 +60,27 @@ with c2:
 # 시작 날짜 계산
 start_dt = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
 
-# 4. 달력 HTML 생성 (날짜 +1pt & Bold 적용)
+# 4. 달력 HTML 생성 (날짜 +1pt, Bold, 흰색 배경 적용)
 def generate_calendar_html(y, m, highlight):
     cal = calendar.monthcalendar(y, m)
     html = f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
         .cal-wrapper {{ font-family: 'Noto Sans KR', sans-serif; border: 1px solid #eee; padding: 5px; border-radius: 8px; background: white; }}
-        .month-title {{ text-align: center; font-weight: bold; font-size: 1.2rem; margin: 8px 0; }}
+        .month-title {{ text-align: center; font-weight: bold; font-size: 1.2rem; margin: 8px 0; color: #333; }}
         .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }}
         .cal-table th {{ border-bottom: 2px solid #eee; height: 25px; }}
-        .cal-table td {{ border: 1px solid #f2f2f2; text-align: center; height: 48px !important; }}
+        .cal-table td {{ border: 1px solid #f2f2f2; text-align: center; height: 48px !important; overflow: hidden; }}
         
         .sun {{ color: #d32f2f; }} .sat {{ color: #1976d2; }}
         
         .cell-content {{ display: flex; flex-direction: column; height: 100%; width: 100%; }}
-        /* 날짜 폰트 1pt 크게 + 볼드 */
+        /* 날짜 폰트 크기 증가 + 볼드 */
         .date-num {{ 
             height: 40%; display: flex; align-items: center; justify-content: center; 
-            font-size: 14px; font-weight: 900 !important; 
+            font-size: 13px; font-weight: 900 !important; 
         }}
-        .shift-name {{ height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; }}
+        .shift-name {{ height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; }}
     </style>
     <div class='cal-wrapper'>
         <div class='month-title'>{y}년 {m}월</div>
@@ -85,17 +96,18 @@ def generate_calendar_html(y, m, highlight):
                 curr = date(y, m, day)
                 s = get_shift(curr)
                 day_class = "sun" if (i == 0 or is_holiday(curr)) else ("sat" if i == 6 else "")
-                is_selected = (highlight == s)
                 
-                bg = STRONG_COLORS[s] if is_selected else BASE_COLORS[s]
-                d_bg = STRONG_COLORS[s] if is_selected else "white"
-                txt = "white" if is_selected else "#333"
+                is_hi = (highlight == s)
+                # 강조 시 칸 전체 진하게, 평소엔 날짜만 흰색
+                bg = STRONG_COLORS[s] if is_hi else BASE_COLORS[s]
+                d_bg = STRONG_COLORS[s] if is_hi else "white"
+                txt = "white" if is_hi else "#333"
 
                 html += f"""
                 <td style="background-color: {bg};">
                     <div class='cell-content'>
-                        <div class='date-num {day_class if not is_selected else ""}' 
-                             style='background-color: {date_bg}; color: {txt if is_selected else ""};'>
+                        <div class='date-num {day_class if not is_hi else ""}' 
+                             style='background-color: {d_bg}; color: {txt if is_hi else ""};'>
                             {day}
                         </div>
                         <div class='shift-name' style='color: {txt};'>
@@ -121,4 +133,4 @@ for i in range(0, 12, 3):
         if i + j < 12:
             y, m = months_list[i + j]
             with cols[j]:
-                st.components.v1.html(generate_calendar_html(y, m, hi_shift), height=340)
+                components.html(generate_calendar_html(y, m, hi_shift), height=340)
