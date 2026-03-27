@@ -3,22 +3,30 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 페이지 설정 (3x4 레이아웃을 위한 wide 모드)
-st.set_page_config(page_title="성의교정 근무달력", layout="wide")
+# 1. 페이지 설정 및 상단 여백 (기존보다 5mm 더 추가)
+st.set_page_config(page_title="성의교정 근무달력", layout="centered")
 
 st.markdown("""
     <style>
-    .block-container { padding-top: 1.5rem !important; }
+    /* 상단 여백 약 5mm(20px) 추가 증설 */
+    .block-container { padding-top: 5.5rem !important; padding-bottom: 0 !important; }
+    .stButton { margin-bottom: 10px !important; }
+    .stSelectbox, .stSlider { margin-top: -10px !important; }
+    
+    /* 인쇄 시 컨트롤러 숨기기 */
     @media print {
-        .no-print, .stButton, .stSlider, .stSelectbox { display: none !important; }
+        .stButton, .stSelectbox, .stSlider, .stHeader, [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        .block-container { padding-top: 0 !important; }
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 근무 로직 및 색상 정의
+# 2. 근무 및 색상 로직
 ORDER = ["B", "C", "A"]
-BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"} # 평상시 연한 파스텔톤
-STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"} # 하이라이트 시 진한 색
+BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"}
+STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"}
 
 def get_shift(dt):
     base = date(2026, 1, 1)
@@ -29,44 +37,55 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 상단 컨트롤러
-st.subheader("🏥 성의교정 근무스케줄 (1년)")
+# 3. 상단 컨트롤러 레이아웃 (문구 수정 및 버튼 상단 배치)
+st.subheader("🏥 성의교정 근무스케줄") # '(1년)' 문구 삭제됨
 
-c1, c2 = st.columns([1.2, 0.8])
-with c1:
-    offset = st.slider("📅 조회 시작 범위", -12, 12, 0)
-with c2:
-    hi_shift = st.selectbox("🎯 강조 조 선택", ["선택 안 함", "A", "B", "C"])
-
+# 인쇄 버튼을 슬라이더 위로 배치
 if st.button("🖨️ PDF 저장 / 인쇄하기"):
     components.html("<script>window.print();</script>", height=0)
 
-# 시작 날짜 계산
-start_dt = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
+c1, c2 = st.columns([1.2, 0.8])
+with c1:
+    offset = st.slider("📅 조회 범위", -12, 12, 0)
+with c2:
+    hi_shift = st.selectbox("🎯 강조 조", ["선택 안 함", "A", "B", "C"])
 
-# 4. 달력 HTML 생성 (하이라이트 시에도 타 조 색상 유지)
+# 시작 날짜 계산
+target_date = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
+y, m = target_date.year, target_date.month
+
+# 4. 달력 HTML 생성 (날짜 폰트 +1 및 Bold 적용)
 def generate_calendar_html(y, m, highlight):
     cal = calendar.monthcalendar(y, m)
     html = f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-        .cal-wrapper {{ font-family: 'Noto Sans KR', sans-serif; border: 1px solid #eee; padding: 5px; border-radius: 8px; background: white; }}
-        .month-title {{ text-align: center; font-weight: bold; font-size: 1.2rem; margin: 8px 0; }}
-        .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }}
-        .cal-table th {{ border-bottom: 2px solid #eee; height: 25px; }}
-        .cal-table td {{ border: 1px solid #f2f2f2; text-align: center; height: 48px !important; overflow: hidden; }}
+        body {{ font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 0; overflow: hidden; }}
+        .month-title {{ text-align: center; font-weight: bold; font-size: 1.8rem; margin: 10px 0; color: #333; }}
+        .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid #eee; }}
+        .cal-table th {{ border: 1px solid #eee; height: 30px; background: #f8f9fa; font-size: 14px; }}
+        .cal-table td {{ border: 1px solid #eee; text-align: center; padding: 0; height: 55px !important; }}
         
-        .sun {{ color: #d32f2f; }} .sat {{ color: #1976d2; }}
+        .sun-head {{ color: #d32f2f; }} .sat-head {{ color: #1976d2; }}
         
-        .cell-content {{ display: flex; flex-direction: column; height: 100%; width: 100%; }}
-        .date-num {{ height: 40%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; }}
-        .shift-name {{ height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; }}
+        .cell-wrapper {{ display: flex; flex-direction: column; height: 100%; width: 100%; }}
+        
+        /* 날짜 폰트 크기 1pt 증가 및 볼드 적용 */
+        .date-box {{ 
+            height: 40%; display: flex; align-items: center; justify-content: center; 
+            font-size: 15px; font-weight: 900 !important; 
+        }}
+        
+        .shift-box {{ height: 60%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; }}
+        
+        .text-sun {{ color: #d32f2f !important; }}
+        .text-sat {{ color: #1976d2 !important; }}
     </style>
-    <div class='cal-wrapper'>
-        <div class='month-title'>{y}년 {m}월</div>
-        <table class='cal-table'>
-            <tr><th class='sun'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat'>토</th></tr>
+    <div class='month-title'>{y}년 {m}월</div>
+    <table class='cal-table'>
+        <tr><th class='sun-head'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat-head'>토</th></tr>
     """
+    
     for week in cal:
         html += "<tr>"
         for i, day in enumerate(week):
@@ -75,48 +94,29 @@ def generate_calendar_html(y, m, highlight):
             else:
                 curr = date(y, m, day)
                 s = get_shift(curr)
-                day_class = "sun" if (i == 0 or is_holiday(curr)) else ("sat" if i == 6 else "")
+                day_clr = "text-sun" if (i == 0 or is_holiday(curr)) else ("text-sat" if i == 6 else "")
                 
-                # 하이라이트 상태 결정
-                is_selected = (highlight == s)
-                
-                if is_selected:
-                    bg_color = STRONG_COLORS[s] # 강조 시 진한 배경
-                    date_bg = STRONG_COLORS[s] # 날짜 박스도 진한 배경
-                    text_color = "white"
+                is_hi = (highlight == s)
+                if is_hi:
+                    bg, d_bg, txt = STRONG_COLORS[s], STRONG_COLORS[s], "white"
                 else:
-                    bg_color = BASE_COLORS[s] # 강조 안 할 때도 원래 색상 유지
-                    date_bg = "white" # 기본 날짜 배경은 흰색
-                    text_color = "#333"
+                    bg, d_bg, txt = BASE_COLORS[s], "white", "#333"
 
                 html += f"""
-                <td style="background-color: {bg_color};">
-                    <div class='cell-content'>
-                        <div class='date-num {day_class if not is_selected else ""}' 
-                             style='background-color: {date_bg}; color: {text_color if is_selected else ""};'>
+                <td style="background-color: {bg};">
+                    <div class="cell-wrapper">
+                        <div class="date-box {day_clr}" style="background-color: {d_bg}; color: {txt if is_hi else ''};">
                             {day}
                         </div>
-                        <div class='shift-name' style='color: {text_color};'>
+                        <div class="shift-box" style="color: {txt};">
                             {s}
                         </div>
                     </div>
                 </td>
                 """
         html += "</tr>"
-    return html + "</table></div>"
+    html += "</table>"
+    return html
 
-# 5. 3x4 레이아웃 12개월 출력
-months_list = []
-temp_dt = start_dt
-for _ in range(12):
-    months_list.append((temp_dt.year, temp_dt.month))
-    last_day = calendar.monthrange(temp_dt.year, temp_dt.month)[1]
-    temp_dt += timedelta(days=last_day)
-
-for i in range(0, 12, 3):
-    cols = st.columns(3)
-    for j in range(3):
-        if i + j < 12:
-            y, m = months_list[i + j]
-            with cols[j]:
-                st.components.v1.html(generate_calendar_html(y, m, hi_shift), height=340)
+# 5. 한 달 출력
+components.html(generate_calendar_html(y, m, hi_shift), height=450, scrolling=False)
