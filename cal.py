@@ -1,3 +1,4 @@
+
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
@@ -10,16 +11,15 @@ st.markdown("""
     <style>
     .block-container { padding-top: 1.5rem !important; }
     @media print {
-        .no-print { display: none !important; }
-        .stButton { display: none !important; }
+        .no-print, .stButton, .stSlider, .stSelectbox { display: none !important; }
     }
     </style>
     """, unsafe_allow_html=True)
 
 # 2. 근무 및 색상 정의
 ORDER = ["B", "C", "A"]
-BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"}
-STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"}
+BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"} # 평상시 연한 색
+STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"} # 하이라이트 진한 색
 
 def get_shift(dt):
     base = date(2026, 1, 1)
@@ -30,8 +30,8 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 컨트롤러 배치
-st.subheader("🏥 성의교정 근무스케줄 (3x4 레이아웃)")
+# 3. 컨트롤러 배치 (슬라이더 왼쪽, 강조 선택 오른쪽)
+st.subheader("🏥 성의교정 근무스케줄 (1년)")
 
 c1, c2 = st.columns([1.2, 0.8])
 with c1:
@@ -39,13 +39,14 @@ with c1:
 with c2:
     hi_shift = st.selectbox("🎯 강조 조 선택", ["선택 안 함", "A", "B", "C"])
 
-# 슬라이더 다음 줄에 배치
+# 슬라이더 다음 줄에 PDF 버튼 배치
 if st.button("🖨️ PDF 저장 / 인쇄하기"):
     components.html("<script>window.print();</script>", height=0)
 
-start_dt = (datetime.now().replace(day=1) + timedelta(days=30 * offset)).replace(day=1)
+# 시작 날짜 계산
+start_dt = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
 
-# 4. 달력 HTML 생성 (날짜 배경 제거 버전)
+# 4. 달력 HTML 생성 (날짜 배경 제거 및 조건부 하이라이트)
 def generate_calendar_html(y, m, highlight):
     cal = calendar.monthcalendar(y, m)
     html = f"""
@@ -60,8 +61,8 @@ def generate_calendar_html(y, m, highlight):
         .sun {{ color: #d32f2f; }} .sat {{ color: #1976d2; }}
         
         .cell-content {{ display: flex; flex-direction: column; height: 100%; width: 100%; }}
-        /* 날짜 배경 기본 투명, 하이라이트 시에만 적용 */
-        .date-num {{ height: 40%; display: flex; align-items: center; justify-content: center; font-weight: bold; background-color: transparent; }}
+        /* 날짜 배경색 제거 */
+        .date-num {{ height: 40%; display: flex; align-items: center; justify-content: center; font-weight: bold; }}
         .shift-name {{ height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; }}
     </style>
     <div class='cal-wrapper'>
@@ -77,18 +78,24 @@ def generate_calendar_html(y, m, highlight):
             else:
                 curr = date(y, m, day)
                 s = get_shift(curr)
-                is_hi = (highlight == s)
                 
-                # 색상 로직
-                bg_color = STRONG_COLORS[s] if is_hi else BASE_COLORS[s]
-                date_bg = STRONG_COLORS[s] if is_hi else "transparent"
-                text_color = "white" if is_hi else "#333"
+                # 강조 로직 적용
+                if highlight == "선택 안 함":
+                    bg_color = BASE_COLORS[s]
+                    text_color = "#333"
+                elif highlight == s:
+                    bg_color = STRONG_COLORS[s] # 선택된 조는 진하게
+                    text_color = "white"
+                else:
+                    bg_color = "#f4f4f4" # 선택되지 않은 조는 연한 회색
+                    text_color = "#ccc"
+
                 day_class = "sun" if (i == 0 or is_holiday(curr)) else ("sat" if i == 6 else "")
 
                 html += f"""
                 <td style="background-color: {bg_color};">
                     <div class='cell-content'>
-                        <div class='date-num {day_class}' style='background-color: {date_bg}; color: {text_color if is_hi else ""};'>
+                        <div class='date-num {day_class if highlight=="선택 안 함" or highlight==s else ""}' style='color: {text_color};'>
                             {day}
                         </div>
                         <div class='shift-name' style='color: {text_color};'>
@@ -102,12 +109,12 @@ def generate_calendar_html(y, m, highlight):
 
 # 5. 12개월 3x4 배치 출력
 months_list = []
-curr_m = start_dt
+temp_dt = start_dt
 for _ in range(12):
-    months_list.append((curr_m.year, curr_m.month))
-    # 다음 달 계산
-    days_in_month = calendar.monthrange(curr_m.year, curr_m.month)[1]
-    curr_m += timedelta(days=days_in_month)
+    months_list.append((temp_dt.year, temp_dt.month))
+    # 다음 달로 이동
+    last_day = calendar.monthrange(temp_dt.year, temp_dt.month)[1]
+    temp_dt += timedelta(days=last_day)
 
 for i in range(0, 12, 3):
     cols = st.columns(3)
@@ -115,4 +122,4 @@ for i in range(0, 12, 3):
         if i + j < 12:
             y, m = months_list[i + j]
             with cols[j]:
-                components.html(generate_calendar_html(y, m, hi_shift), height=330)
+                st.components.v1.html(generate_calendar_html(y, m, hi_shift), height=330)
