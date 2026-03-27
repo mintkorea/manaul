@@ -104,4 +104,7 @@ def render(start_dt, highlight):
 start_date = datetime.now().replace(day=1) + relativedelta(months=offset)
 
 components.html(
-    render(st
+    render(start_date, highlight),
+    height=1400,
+    scrolling=True  # 🔥 전체 하나만 스크롤
+)
