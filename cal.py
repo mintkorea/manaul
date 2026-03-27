@@ -6,29 +6,8 @@ import calendar
 # 1. 페이지 설정
 st.set_page_config(page_title="성의교정 근무달력", layout="centered")
 
-# CSS: 화면에는 한 달만, 인쇄 시에는 전체(3x4)를 출력하는 로직
-st.markdown("""
-    <style>
-    /* 상단 여백 5mm(약 20px) 확보 */
-    .block-container { padding-top: 20px !important; }
-    
-    /* 인쇄 전용 설정 */
-    @media print {
-        @page { size: A4 landscape; margin: 10mm; }
-        body * { visibility: hidden; }
-        .print-only, .print-only * { visibility: visible; }
-        .print-only { 
-            position: absolute; left: 0; top: 0; width: 100%; 
-            display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 10px;
-        }
-        .no-print { display: none !important; }
-    }
-    
-    /* 화면용 스타일 */
-    .screen-only { display: block; }
-    .print-only { display: none; }
-    </style>
-    """, unsafe_allow_html=True)
+# 상단 여백 5mm(20px) 확보
+st.markdown("<style>.block-container { padding-top: 20px !important; }</style>", unsafe_allow_html=True)
 
 # 2. 근무 및 색상 정의
 ORDER = ["B", "C", "A"]
@@ -44,7 +23,7 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 상단 컨트롤러 (화면에만 보임)
+# 3. 상단 컨트롤러
 st.subheader("🏥 성의교정 근무스케줄")
 
 if st.button("🖨️ PDF 저장 / 1년치 인쇄하기"):
@@ -56,63 +35,76 @@ with c1:
 with c2:
     hi_shift = st.selectbox("🎯 강조 조 선택", ["선택 안 함", "A", "B", "C"])
 
-# 4. 달력 HTML 생성 함수 (날짜 폰트 +1pt & Bold 적용)
-def generate_cal_html(y, m, highlight, is_print=False):
-    cal = calendar.monthcalendar(y, m)
-    font_size = "11px" if is_print else "14px"
-    cell_height = "45px" if is_print else "60px"
-    
-    html = f"""
-    <div style="font-family: 'Noto Sans KR', sans-serif; border: 1px solid #eee; padding: 5px; border-radius: 8px; background: white;">
-        <div style="text-align: center; font-weight: bold; font-size: 1.2rem; margin-bottom: 5px;">{y}년 {m}월</div>
-        <table style="width: 100%; border-collapse: collapse; table-layout: fixed; font-size: {font_size};">
-            <tr style="border-bottom: 1px solid #eee;">
-                <th style="color: #d32f2f;">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th style="color: #1976d2;">토</th>
-            </tr>
+# 4. 전체 HTML 패키지 생성 (화면용 1달 + 인쇄용 12달 통합)
+def get_final_html(target_dt, highlight):
+    # 공통 스타일
+    style = f"""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        body {{ font-family: 'Noto Sans KR', sans-serif; background: white; margin: 0; padding: 0; }}
+        .cal-box {{ border: 1px solid #eee; border-radius: 8px; padding: 5px; background: white; margin-bottom: 10px; }}
+        .month-title {{ text-align: center; font-weight: bold; font-size: 1.2rem; margin: 5px 0; }}
+        table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+        th {{ border-bottom: 1px solid #eee; font-size: 13px; padding-bottom: 5px; }}
+        td {{ border: 1px solid #f2f2f2; height: 60px; vertical-align: top; padding: 0; }}
+        .sun {{ color: #d32f2f; }} .sat {{ color: #1976d2; }}
+        .cell-content {{ display: flex; flex-direction: column; height: 100%; }}
+        .date-num {{ height: 40%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; }}
+        .shift-name {{ height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; }}
+        
+        /* 인쇄 시 레이아웃 제어 */
+        @media print {{
+            @page {{ size: A4 landscape; margin: 10mm; }}
+            .screen-only {{ display: none !important; }}
+            .print-only {{ display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 10px; visibility: visible; }}
+            td {{ height: 45px !important; }}
+            .date-num {{ font-size: 13px !important; }}
+            .shift-name {{ font-size: 16px !important; }}
+        }}
+        .print-only {{ display: none; }}
+    </style>
     """
-    for week in cal:
-        html += "<tr>"
-        for i, day in enumerate(week):
-            if day == 0:
-                html += "<td></td>"
-            else:
-                curr = date(y, m, day)
-                s = get_shift(curr)
-                day_clr = "#d32f2f" if (i == 0 or is_holiday(curr)) else ("#1976d2" if i == 6 else "#333")
-                is_hi = (highlight == s)
-                
-                bg = STRONG_COLORS[s] if is_hi else BASE_COLORS[s]
-                d_bg = STRONG_COLORS[s] if is_hi else "white"
-                t_clr = "white" if is_hi else "#333"
 
-                html += f"""
-                <td style="background-color: {bg}; border: 1px solid #f2f2f2; height: {cell_height}; vertical-align: top;">
-                    <div style="display: flex; flex-direction: column; height: 100%;">
-                        <div style="height: 40%; background-color: {d_bg}; color: {t_clr if is_hi else day_clr}; font-weight: 900; font-size: 1.1em; display: flex; align-items: center; justify-content: center;">
-                            {day}
+    def make_table(y, m):
+        cal = calendar.monthcalendar(y, m)
+        t_html = f"<div class='cal-box'><div class='month-title'>{y}년 {m}월</div><table>"
+        t_html += "<tr><th class='sun'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat'>토</th></tr>"
+        for week in cal:
+            t_html += "<tr>"
+            for i, day in enumerate(week):
+                if day == 0: t_html += "<td></td>"
+                else:
+                    curr = date(y, m, day)
+                    s = get_shift(curr)
+                    day_clr = "sun" if (i == 0 or is_holiday(curr)) else ("sat" if i == 6 else "")
+                    is_hi = (highlight == s)
+                    bg = STRONG_COLORS[s] if is_hi else BASE_COLORS[s]
+                    d_bg = STRONG_COLORS[s] if is_hi else "white"
+                    txt = "white" if is_hi else "#333"
+                    t_html += f"""
+                    <td style="background-color: {bg};">
+                        <div class="cell-content">
+                            <div class="date-num {day_clr if not is_hi else ''}" style="background-color: {d_bg}; color: {txt if is_hi else ''};">{day}</div>
+                            <div class="shift-name" style="color: {txt};">{s}</div>
                         </div>
-                        <div style="height: 60%; color: {t_clr}; font-weight: 900; font-size: 1.3em; display: flex; align-items: center; justify-content: center;">
-                            {s}
-                        </div>
-                    </div>
-                </td>
-                """
-        html += "</tr>"
-    return html + "</table></div>"
+                    </td>"""
+            t_html += "</tr>"
+        return t_html + "</table></div>"
 
-# 5. 화면 출력 (선택한 한 달만 크게)
-target_dt = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
-st.markdown("<div class='screen-only'>", unsafe_allow_html=True)
-st.markdown(generate_cal_html(target_dt.year, target_dt.month, hi_shift), unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
+    # 화면용 (1달)
+    screen_html = f"<div class='screen-only'>{make_table(target_dt.year, target_dt.month)}</div>"
+    
+    # 인쇄용 (12달)
+    print_html = "<div class='print-only'>"
+    p_dt = target_dt
+    for _ in range(12):
+        print_html += make_table(p_dt.year, p_dt.month)
+        last_day = calendar.monthrange(p_dt.year, p_dt.month)[1]
+        p_dt += timedelta(days=last_day)
+    print_html += "</div>"
 
-# 6. 인쇄용 출력 (3x4 레이아웃, 화면에선 숨김)
-st.markdown("<div class='print-only'>", unsafe_allow_html=True)
-print_start = target_dt # 슬라이더로 선택한 달부터 12개월 출력
-for i in range(12):
-    curr_y, curr_m = print_start.year, print_start.month
-    st.markdown(generate_cal_html(curr_y, curr_m, hi_shift, is_print=True), unsafe_allow_html=True)
-    # 다음 달 계산
-    last_day = calendar.monthrange(curr_y, curr_m)[1]
-    print_start += timedelta(days=last_day)
-st.markdown("</div>", unsafe_allow_html=True)
+    return style + screen_html + print_html
+
+# 5. 최종 렌더링
+target_date = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
+components.html(get_final_html(target_date, hi_shift), height=1200, scrolling=True)
