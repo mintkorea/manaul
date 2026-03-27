@@ -1,56 +1,47 @@
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 import calendar
 
 # 1. 페이지 설정
 st.set_page_config(page_title="성의교정 근무달력", layout="wide")
 
-# 2. CSS: 여백 및 플로팅 버튼, 스크롤 최적화
+# 2. CSS 개선 (스크롤/모바일 대응)
 st.markdown("""
-    <style>
-    /* 상단/좌우 베젤 여백 확보 */
-    .block-container { 
-        padding-top: 70px !important; 
-        padding-left: 25px !important; 
-        padding-right: 25px !important; 
-        max-width: 100% !important; 
-    }
-    
-    /* 컨트롤러(슬라이더, 셀렉트박스) 스타일 */
-    .stSlider, .stSelectbox {
-        margin-bottom: 20px !important;
-    }
+<style>
+.block-container { 
+    padding-top: 60px !important; 
+    padding-left: 20px !important; 
+    padding-right: 20px !important; 
+    max-width: 100% !important; 
+}
 
-    /* 플로팅 탑 버튼 */
-    .top-btn {
-        position: fixed;
-        bottom: 30px;
-        right: 25px;
-        background-color: #333;
-        color: white;
-        width: 50px;
-        height: 50px;
-        border-radius: 25px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        text-decoration: none;
-        z-index: 9999;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        border: 2px solid white;
-    }
-    
-    /* 아이프레임 테두리 및 스크롤 제거 (통합 스크롤용) */
-    iframe { width: 100% !important; border: none !important; }
-    </style>
-    
-    <div id="top-anchor"></div>
-    <a href="#top-anchor" class="top-btn">▲</a>
-    """, unsafe_allow_html=True)
+.top-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 20px;
+    background-color: #333;
+    color: white;
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    text-decoration: none;
+    z-index: 9999;
+}
 
-# 3. 근무 로직 및 색상
+iframe { width: 100% !important; border: none !important; }
+</style>
+
+<div id="top-anchor"></div>
+<a href="#top-anchor" class="top-btn">▲</a>
+""", unsafe_allow_html=True)
+
+# 3. 근무 로직
 ORDER = ["B", "C", "A"]
 BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"}
 STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"}
@@ -60,92 +51,95 @@ def get_shift(dt):
     return ORDER[(dt - base).days % 3]
 
 def is_holiday(dt):
-    hols = [date(dt.year, 1, 1), date(dt.year, 3, 1), date(dt.year, 5, 5), date(dt.year, 6, 6),
-            date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
+    hols = [
+        date(dt.year, 1, 1), date(dt.year, 3, 1), date(dt.year, 5, 5),
+        date(dt.year, 6, 6), date(dt.year, 8, 15), date(dt.year, 10, 3),
+        date(dt.year, 10, 9), date(dt.year, 12, 25)
+    ]
     return dt in hols
 
-# 4. 상단 컨트롤러
+# 4. 컨트롤러
 st.subheader("🏥 성의교정 근무스케줄")
-c1, c2 = st.columns([1, 1])
+c1, c2, c3 = st.columns([1,1,1])
+
 with c1:
-    # 기준 시점 선택 (현재 달 기준 +- 12개월)
-    offset = st.slider("📅 조회 시작 달 설정 (현재 기준)", -12, 12, 0)
+    offset = st.slider("📅 시작 월", -12, 12, 0)
+
 with c2:
-    hi_shift = st.selectbox("🎯 강조할 근무 조 선택", ["선택 안 함", "A", "B", "C"])
+    hi_shift = st.selectbox("🎯 강조 조", ["선택 안 함", "A", "B", "C"])
 
-# 기준 날짜 계산 (슬라이더 값 적용)
-base_start_date = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
+with c3:
+    months = st.selectbox("📊 표시 개월", [3, 6, 12], index=2)
 
-# 5. 12개월 동적 생성 HTML
-def get_dynamic_calendar_html(start_dt, highlight):
-    html_content = """
+highlight = None if hi_shift == "선택 안 함" else hi_shift
+
+# 5. HTML 생성 (캐싱 적용)
+@st.cache_data
+def render_calendar(start_dt, highlight, months):
+    html = """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: white; margin: 0; padding: 0; }
-        .grid-container { 
-            display: grid; 
-            grid-template-columns: 1fr; 
-            gap: 10px;
-            padding: 0 5px;
-            box-sizing: border-box;
-            width: 100%;
-        }
-        @media (min-width: 800px) {
-            .grid-container { grid-template-columns: repeat(3, 1fr); gap: 25px; padding: 20px; }
-        }
-        .cal-box { border: none; background: white; width: 100%; margin-bottom: 25px; }
-        .month-title { text-align: center; font-weight: 900; font-size: 1.6rem; margin: 15px 0; color: #222; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th { border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 14px; }
-        td { border: 1px solid #f2f2f2; height: 62px; vertical-align: top; padding: 0; }
-        .sun { color: #d32f2f; } .sat { color: #1976d2; }
-        .cell-content { display: flex; flex-direction: column; height: 100%; }
-        /* 날짜 배경 흰색 고정 */
-        .date-num { height: 40%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; background-color: #FFFFFF; }
-        .date-num.hi { color: white !important; }
-        .shift-name { height: 60%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 20px; }
+    body { font-family: 'Noto Sans KR', sans-serif; margin:0; padding:0; }
+    .grid { display:grid; gap:15px; padding:10px; }
+    @media (min-width:800px){ .grid{grid-template-columns:repeat(3,1fr);} }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th { padding:5px; }
+    td { min-height:60px; height:auto; border:1px solid #eee; }
+    .sun{color:#d32f2f;} .sat{color:#1976d2;}
+    .cell{display:flex; flex-direction:column; height:100%;}
+    .date{font-weight:bold; text-align:center;}
+    .shift{flex:1; display:flex; align-items:center; justify-content:center; font-weight:bold;}
     </style>
-    <div class="grid-container">
+    <div class='grid'>
     """
-    
+
     curr = start_dt
-    for _ in range(12):
+
+    for _ in range(months):
         y, m = curr.year, curr.month
         cal = calendar.monthcalendar(y, m)
-        html_content += f"<div class='cal-box'><div class='month-title'>{y}년 {m}월</div><table>"
-        html_content += "<tr><th class='sun'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat'>토</th></tr>"
+
+        html += f"<div><h3 style='text-align:center'>{y}.{m}</h3><table>"
+        html += "<tr><th class='sun'>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class='sat'>토</th></tr>"
+
         for week in cal:
-            html_content += "<tr>"
-            for i, day in enumerate(week):
-                if day == 0: html_content += "<td></td>"
+            html += "<tr>"
+            for i, d in enumerate(week):
+                if d == 0:
+                    html += "<td></td>"
                 else:
-                    curr_d = date(y, m, day)
-                    s = get_shift(curr_d)
+                    dt = date(y, m, d)
+                    s = get_shift(dt)
                     is_hi = (highlight == s)
-                    
-                    day_clr = "sun" if (i == 0 or is_holiday(curr_d)) else ("sat" if i == 6 else "")
-                    
-                    # 날짜 배경 로직 (하이라이트 시에만 색상 적용)
-                    d_bg = STRONG_COLORS[s] if is_hi else "#FFFFFF"
-                    d_txt = "white" if is_hi else ""
-                    
-                    # 근무 조 배경 및 텍스트 로직
-                    s_bg = STRONG_COLORS[s] if is_hi else BASE_COLORS[s]
-                    s_txt = "white" if is_hi else "#333"
 
-                    html_content += f"""
-                    <td style="background-color: {s_bg};">
-                        <div class="cell-content">
-                            <div class="date-num {day_clr if not is_hi else 'hi'}" style="background-color: {d_bg}; color: {d_txt};">{day}</div>
-                            <div class="shift-name" style="color: {s_txt};">{s}</div>
+                    if is_hi:
+                        bg = STRONG_COLORS[s]
+                        txt = "white"
+                    else:
+                        bg = BASE_COLORS[s]
+                        txt = "#333"
+
+                    day_cls = "sun" if (i==0 or is_holiday(dt)) else ("sat" if i==6 else "")
+
+                    html += f"""
+                    <td style='background:{bg}'>
+                        <div class='cell'>
+                            <div class='date {day_cls}'>{d}</div>
+                            <div class='shift' style='color:{txt}'>{s}</div>
                         </div>
-                    </td>"""
-            html_content += "</tr>"
-        html_content += "</table></div>"
-        # 다음 달로 이동
-        curr = (curr.replace(day=1) + timedelta(days=32)).replace(day=1)
-    
-    return html_content + "</div>"
+                    </td>
+                    """
+            html += "</tr>"
 
-# 6. 렌더링 (높이를 충분히 주어 메인 페이지 스크롤과 일체화)
-components.html(get_dynamic_calendar_html(base_start_date, hi_shift), height=7600, scrolling=False)
+        html += "</table></div>"
+        curr += relativedelta(months=1)
+
+    return html + "</div>"
+
+# 6. 실행
+start_date = datetime.now().replace(day=1) + relativedelta(months=offset)
+
+components.html(
+    render_calendar(start_date, highlight, months),
+    height=1200,
+    scrolling=True
+)
