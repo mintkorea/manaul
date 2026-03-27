@@ -3,10 +3,10 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 페이지 설정 (레이아웃 최적화)
+# 1. 페이지 설정 (중앙 정렬 및 여백 최적화)
 st.set_page_config(page_title="성의교정 근무달력", layout="wide")
 
-# CSS: 상단 여백 8mm(55px) 및 좌우 균등 정렬
+# CSS: 상단 8mm 여백 및 좌우 답답함 해소용 여백 설정
 st.markdown("""
     <style>
     .block-container { 
@@ -14,11 +14,9 @@ st.markdown("""
         padding-left: 0 !important; 
         padding-right: 0 !important; 
         max-width: 100% !important; 
-        display: flex;
-        justify-content: center;
     }
     iframe { 
-        width: 100vw !important; 
+        width: 100% !important; 
         margin: 0 auto !important;
     }
     </style>
@@ -38,9 +36,9 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 컨트롤러 영역 (중앙 정렬박스 안으로 배치)
-col1, col2, col3 = st.columns([1, 8, 1])
-with col2:
+# 3. 컨트롤러 (좌우 여백 확보를 위해 내부 컬럼 사용)
+_, col_main, _ = st.columns([0.05, 0.9, 0.05])
+with col_main:
     st.subheader("🏥 성의교정 근무스케줄")
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -48,8 +46,8 @@ with col2:
     with c2:
         hi_shift = st.selectbox("🎯 강조 조 선택", ["선택 안 함", "A", "B", "C"])
 
-# 4. 12개월 HTML (테두리 제거 및 높이 최적화)
-def get_final_calendar_html(start_dt, highlight):
+# 4. 12개월 HTML (좌우 여백 및 높이 최종 최적화)
+def get_final_refined_html(start_dt, highlight):
     html_content = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
@@ -61,28 +59,30 @@ def get_final_calendar_html(start_dt, highlight):
         .grid-container { 
             display: grid; 
             grid-template-columns: 1fr; 
-            gap: 0px; /* 월간 간격 최소화 */
-            padding: 0;
+            gap: 0px;
+            /* 좌우 12px 여백으로 답답함 해소 */
+            padding: 0 12px;
+            box-sizing: border-box;
             width: 100%;
         }
         @media (min-width: 800px) {
             .grid-container { 
                 grid-template-columns: repeat(3, 1fr); 
                 gap: 20px;
-                padding: 10px;
+                padding: 10px 30px;
             }
         }
         .cal-box { 
-            border: none; /* 테두리 제거 */
+            border: none;
             background: white; 
             width: 100%; 
-            margin: 0 auto 30px auto; /* 아래쪽 여백만 유지 */
+            margin: 0 auto 40px auto; 
         }
-        .month-title { text-align: center; font-weight: 900; font-size: 1.6rem; margin: 15px 0; color: #222; }
+        .month-title { text-align: center; font-weight: 900; font-size: 1.6rem; margin: 10px 0; color: #222; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th { border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 15px; }
-        /* 한 화면에 한 달이 들어오도록 높이 미세 조정 */
-        td { border: 1px solid #f8f8f8; height: 62px; vertical-align: top; padding: 0; }
+        th { border-bottom: 2px solid #eee; padding-bottom: 8px; font-size: 15px; }
+        /* 높이를 60px로 미세 조정하여 한 화면에 더 쾌적하게 노출 */
+        td { border: 1px solid #f8f8f8; height: 60px; vertical-align: top; padding: 0; }
         .sun { color: #d32f2f; } .sat { color: #1976d2; }
         .cell-content { display: flex; flex-direction: column; height: 100%; }
         .date-num { 
@@ -125,7 +125,6 @@ def get_final_calendar_html(start_dt, highlight):
         curr += timedelta(days=last_day)
     return html_content + "</div>"
 
-# 5. 실행
+# 5. 최종 렌더링
 start_date = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
-# 높이를 여유 있게 설정하여 12개월 전체 노출 보장
-components.html(get_final_calendar_html(start_date, hi_shift), height=6000, scrolling=False)
+components.html(get_final_refined_html(start_date, hi_shift), height=6000, scrolling=False)
