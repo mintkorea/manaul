@@ -3,18 +3,17 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta
 import calendar
 
-# 1. 페이지 설정 및 상단 여백 추가
+# 1. 페이지 설정 및 상단 여백 (모바일 최적화)
 st.set_page_config(page_title="성의교정 근무달력", layout="centered")
 
-# CSS를 통한 상단 여백 및 기본 스타일 설정
 st.markdown("""
     <style>
-    .block-container { padding-top: 5rem !important; } /* 상단 여백 1cm 추가 */
-    .stSelectbox, .stSlider { margin-bottom: 20px; }
+    .block-container { padding-top: 2rem !important; padding-bottom: 0 !important; }
+    .stSelectbox, .stSlider { margin-bottom: 5px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 근무 및 공휴일 로직
+# 2. 근무 로직
 ORDER = ["B", "C", "A"]
 BASE_COLORS = {"A": "#FFE0B2", "B": "#FFCDD2", "C": "#BBDEFB"}
 STRONG_COLORS = {"A": "#FB8C00", "B": "#E53935", "C": "#1E88E5"}
@@ -28,35 +27,38 @@ def is_holiday(dt):
             date(dt.year, 8, 15), date(dt.year, 10, 3), date(dt.year, 10, 9), date(dt.year, 12, 25)]
     return dt in hols
 
-# 3. 상단 컨트롤러
+# 3. 상단 컨트롤러 (공간 절약형)
 st.subheader("🏥 성의교정 근무스케줄")
 
-col1, col2 = st.columns([1, 2])
-with col1:
-    hi_shift = st.selectbox("🎯 강조할 조", ["선택 안 함", "A", "B", "C"])
-with col2:
-    offset = st.slider("📅 조회 범위(현재 기준)", -12, 12, 0)
+c1, c2 = st.columns([1, 1])
+with c1:
+    hi_shift = st.selectbox("🎯 강조", ["선택 안 함", "A", "B", "C"])
+with c2:
+    offset = st.slider("📅 범위", -12, 12, 0)
 
-# 기준 날짜 계산
 start_dt = (datetime.now().replace(day=1) + timedelta(days=31 * offset)).replace(day=1)
 
-# 4. 달력 생성 함수 (안전한 HTML 렌더링을 위해 분리)
-def generate_month_html(y, m, highlight):
+# 4. 달력 생성 함수 (높이 축소 버전)
+def generate_compact_calendar(y, m, highlight):
     cal = calendar.monthcalendar(y, m)
     
-    # 폰트 크기 5pt 증가 (기존 대비 약 1.9rem)
     html = f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-        body {{ font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 0; }}
-        .month-title {{ text-align: center; font-weight: bold; font-size: 2.1rem; margin-bottom: 15px; color: #333; }}
-        .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid #eee; }}
-        .cal-table th, .cal-table td {{ border: 1px solid #eee; text-align: center; padding: 0; height: 85px; }}
-        .sun-head {{ color: #d32f2f; background: #f8f9fa; font-weight: bold; }}
-        .sat-head {{ color: #1976d2; background: #f8f9fa; font-weight: bold; }}
+        body {{ font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 0; overflow: hidden; }}
+        .month-title {{ text-align: center; font-weight: bold; font-size: 1.8rem; margin: 10px 0; color: #333; }}
+        .cal-table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
+        /* 칸 높이를 55px로 축소하여 한 화면에 들어오게 함 */
+        .cal-table th {{ border: 1px solid #eee; height: 30px; background: #f8f9fa; font-size: 14px; }}
+        .cal-table td {{ border: 1px solid #eee; text-align: center; padding: 0; height: 55px !important; }}
+        
+        .sun-head {{ color: #d32f2f; }}
+        .sat-head {{ color: #1976d2; }}
+        
         .cell-wrapper {{ display: flex; flex-direction: column; height: 100%; width: 100%; }}
-        .date-box {{ height: 35%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; background-color: white; }}
-        .shift-box {{ height: 65%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; }}
+        .date-box {{ height: 40%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; background-color: white; }}
+        .shift-box {{ height: 60%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; }}
+        
         .text-sun {{ color: #d32f2f; }}
         .text-sat {{ color: #1976d2; }}
     </style>
@@ -96,7 +98,7 @@ def generate_month_html(y, m, highlight):
     html += "</table>"
     return html
 
-# 5. 12개월 출력 (st.components.v1.html 사용으로 HTML 노출 방지)
+# 5. 12개월 출력 (컴포넌트 높이를 450px로 조정)
 for n in range(12):
     target = start_dt + timedelta(days=n * 31)
     y, m = target.year, target.month
@@ -107,6 +109,5 @@ for n in range(12):
             target += timedelta(days=15)
             y, m = target.year, target.month
             
-    # 정적 컴포넌트로 렌더링 (높이는 달력 크기에 맞춰 620px 정도로 넉넉히 설정)
-    month_html = generate_month_html(y, m, hi_shift)
-    components.html(month_html, height=620, scrolling=False)
+    # 전체 렌더링 높이를 450px로 설정하여 스크롤 없이 한 화면에 표시
+    components.html(generate_compact_calendar(y, m, hi_shift), height=450, scrolling=False)
